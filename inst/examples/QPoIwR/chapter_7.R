@@ -119,3 +119,103 @@ mean(aapl$log_return) * trading_days # .566 - 56%
 # what is the annualized daily volatility
 sd(aapl$log_return) * sqrt(trading_days) #.46 - 46%
 # so while we made huge ground, we can also recognize that we had to endure some volatility
+
+
+# 7.7.1 Risk free price risk
+# download US constant treasuries with different maturity dates
+library(Quandl);
+library(dplyr);
+
+codes <- c("FRED/DGS3MO", "FRED/DGS2", "FRED/DGS10", "FRED/DGS30");
+ust.raw <- Quandl(codes, type = "xts");
+colnames(ust.raw) <- c("T3M.yld", "T2Y.yld", "T10Y.yld", "T30Y.yld");
+
+# the ylds are in percentage points, so we need to divide them
+ust.raw <- ust.raw / 100.;
+
+autoplot.zoo(ust.raw) +
+  theme_light() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "date", y = "Yld");
+
+
+# a) compute an average yield for each of the constant treasuries
+average.yld <- ust.raw %>%
+  fortify() %>%
+  dplyr::summarise(avg_T3M = mean(T3M.yld, na.rm = T),
+                   avg_T2Y = mean(T2Y.yld, na.rm = T),
+                   avg_T10Y = mean(T10Y.yld, na.rm = T),
+                   avg_T30Y = mean(T30Y.yld, na.rm = T));
+
+# so we see the best average yield is for the 30Y treasury, which
+# yields about 6.4%.
+
+# b) calculate daily log returns via an approximation
+# since these are percentage values, we cannot compute daily log returns
+# directly. First compute the change in yields
+
+ust.raw$dT3M <- diff(ust.raw$T3M.yld);
+ust.raw$dT2Y <- diff(ust.raw$T2Y.yld);
+ust.raw$dT10Y <- diff(ust.raw$T10Y.yld);
+ust.raw$dT30Y <- diff(ust.raw$T30Y.yld);
+
+# now the differences need to be multiplied with the average time of a bond's
+# cashflow. This results in an approximation of a daily difference in bond price
+# which is on the same scale as the percentage yields
+ust.raw$dT3M <- ust.raw$dT3M * -.25;
+ust.raw$dT2Y <- ust.raw$dT2Y * -1.98;
+ust.raw$dT10Y <- ust.raw$dT10Y * -8.72;
+ust.raw$dT30Y <- ust.raw$dT30Y * -19.2;
+# from this we can compute expected/ average daily log returns
+# which form the basis for annualized average return or profit
+ust.raw_avg_dT3M <- mean(ust.raw$dT3M, na.rm = T);
+ust.raw_avg_dT2Y <- mean(ust.raw$dT2Y, na.rm = T);
+ust.raw_avg_dT10Y <- mean(ust.raw$dT10Y, na.rm = T);
+ust.raw_avg_dT30Y <- mean(ust.raw$dT30Y, na.rm = T);
+
+trading_days <- 250;
+ust.raw_avg_aT3M <- ust.raw_avg_dT3M * trading_days;
+ust.raw_avg_aT2Y <- ust.raw_avg_dT2Y * trading_days;
+ust.raw_avg_aT10Y <- ust.raw_avg_dT10Y * trading_days;
+ust.raw_avg_aT30Y <- ust.raw_avg_dT30Y * trading_days;
+
+# the 30Y treasury has an annualized expected profit of 2.5%,
+# which is the highest
+
+#3. compute daily volatility
+ust.raw_vol_dT3M <- sd(ust.raw$dT3M, na.rm = T);
+ust.raw_vol_dT2Y <- sd(ust.raw$dT2Y, na.rm = T);
+ust.raw_vol_dT10Y <- sd(ust.raw$dT10Y, na.rm = T);
+ust.raw_vol_dT30Y <- sd(ust.raw$dT30Y, na.rm = T);
+# and annualize it
+ust.raw_vol_aT3M <- ust.raw$vol_dT3M * sqrt(trading_days);
+ust.raw_vol_aT2Y <- ust.raw$vol_dT2Y * sqrt(trading_days);
+ust.raw_vol_aT10Y <- ust.raw$vol_dT10Y * sqrt(trading_days);
+ust.raw_vol_aT30Y <- ust.raw$vol_dT30Y * sqrt(trading_days);
+# while the 30Y treasury has the highest profit,
+# it also has the highest annualized volatility
+
+# 4. calculate kurtosis and skewness
+k_T3M <- moments::kurtosis(x = ust.raw$dT3M, na.rm = T);
+s_T3M <- moments::skewness(x = ust.raw$dT3M, na.rm = T);
+
+# look at the histogram of approximated daily log returns
+ust.raw %>%
+  fortify() %>%
+  dplyr::select(dT3M, dT2Y, dT10Y, dT30Y) %>%
+  tidyr::pivot_longer(cols = c(dT3M, dT2Y, dT10Y, dT30Y),
+                      names_to = "Treasury", values_to = "DailyLogPrice",
+                      values_drop_na = T) %>%
+  ggplot() +
+  geom_histogram(aes(x = DailyLogPrice)) +
+  scale_x_continuous(labels = scales::percent) +
+  theme_light() +
+  labs(x = "Daily Log Price Percentage Change",
+       title = "US Treasuries",
+       caption = "(c) 2021 Christian Bitter - Data Quandl") +
+  facet_grid(. ~ Treasury);
+
+# we can see that the 30Y treasury is much wider, and while still concentrated
+# around 0%, there is actually some daily price change
+# as opposed to the 3 month treasury, which on first glance is
+# well concentrated around 0%
