@@ -1,6 +1,14 @@
+# name: chrapter_7.r
+# desc: exercises from chapter 7 of - A Quantitative Primer on Investments with R
+# auth: (c) christian bitter - 2021
+
 rm(list = ls());
 library(ggplot2);
 library(moments)
+library(tidyquant);
+library(tidyr);
+library(dplyr);
+library(ggcorrplot);
 
 # plot a random walk
 random_walk(x0 = 100, t = 100) %>%
@@ -219,3 +227,116 @@ ust.raw %>%
 # around 0%, there is actually some daily price change
 # as opposed to the 3 month treasury, which on first glance is
 # well concentrated around 0%
+
+# 7.3 - Equity Price Risk
+equities <- tibble(
+  "symbol" = c("^GSPC", #S&P500
+               "MSFT", #Microsoft
+               "AAPL" #Apple
+  ),
+  "name" = c("SP500", "Microsoft", "Apple")
+);
+
+data <- tidyquant::tq_get(x = equities$symbol, from = "2010-01-01");
+equities <- data %>% dplyr::inner_join(equities, by = "symbol");
+
+equities %>%
+  ggplot(aes(x = date)) +
+  geom_candlestick(aes(open = open, high = high, low = low, close = adjusted)) +
+  labs(title = "Equities - Daily Price", y = "Closing Price", x = "") +
+  theme_tq() +
+  facet_grid(name ~ ., scales = "free")
+
+# if we look at AAPL, MSFT and S&P500 they track each other quite closely
+# i) average price
+mean_price <- equity_return %>%
+  dplyr::summarise(mean_price_SP500 = mean(SP500, na.rm = T),
+                   mean_price_MSFT = mean(Microsoft, na.rm = T),
+                   mean_price_AAPL = mean(Apple, na.rm = T));
+
+equities %>%
+  ggplot(aes(x = date)) +
+  geom_candlestick(aes(open = open, high = high, low = low, close = adjusted)) +
+  labs(title = "Equities - Daily Price", y = "Closing Price", x = "") +
+  theme_tq() +
+  facet_grid(name ~ ., scales = "free")
+
+# ii) compute log returns
+equity_return <-
+  equities %>% dplyr::select(name, date, adjusted) %>%
+  tidyr::pivot_wider(id_cols = c("name", "date"), names_from = "name", values_from = adjusted);
+
+returns <- equity_return %>%
+  dplyr::mutate(SP500_lPrice = log(SP500),
+                MSFT_lPrice = log(Microsoft),
+                AAPL_lPrice = log(Apple)) %>%
+  dplyr::summarise(SP500_ldRet = c(0, diff(SP500_lPrice)),
+                   MSFT_ldRet  = c(0, diff(MSFT_lPrice)),
+                   AAPL_ldRet  = c(0, diff(AAPL_lPrice))) %>%
+  dplyr::bind_cols(equity_return);
+
+returns %>%
+  tidyr::pivot_longer(cols = c("SP500_ldRet", "MSFT_ldRet", "AAPL_ldRet"),
+                      names_to = "name", values_to = "adjusted") %>%
+  ggplot(aes(x = date, y = adjusted)) +
+  geom_line() +
+  labs(title = "Equities - Daily Log Returns", y = "log(R_d)", x = "Date") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_date() +
+  theme_tq() +
+  facet_grid(name ~ ., scales = "free");
+
+# average log return and annualized volatility
+trading_days <- 250;
+returns %>%
+  tidyr::pivot_longer(cols = c("SP500_ldRet", "MSFT_ldRet", "AAPL_ldRet"),
+                      names_to = "name", values_to = "adjusted") %>%
+  dplyr::group_by(name) %>%
+  dplyr::summarise(mean_ldRet = mean(adjusted, na.rm = T),
+                   annualized_volatility = sqrt(trading_days) * sd(adjusted, na.rm = T),
+                   skew = moments::skewness(adjusted),
+                   kurt = moments::kurtosis(adjusted));
+
+# let's look at the histogram of daily log returns to understand the skewness better
+returns %>%
+  tidyr::pivot_longer(cols = c("SP500_ldRet", "MSFT_ldRet", "AAPL_ldRet"),
+                      names_to = "name", values_to = "adjusted") %>%
+  dplyr::select(name, adjusted) %>%
+  ggplot() +
+  geom_histogram(aes(x = adjusted), binwidth = .001) +
+  labs(x = "Daily Log Return", y = "#", title = "Equities - Daily Log Returns") +
+  theme_tq() +
+  scale_x_continuous(labels = scales::percent) +
+  facet_grid(name ~ ., scales = "free");
+# skewness as a measure for symmetry indicates how symmetric our distributions around the center point.
+# the (symmetric) normal distribution has skewness of 0
+# our data for the 3 assets indicates some left-skewness - the left tail is long relative to the right tail
+# meaning that we may exhibit larger losses, i.e. a wider range of negative daily log returns
+
+# positive kurtosis indicates heavy tails (the normal distribution has kurtosis of 3),
+# and we see that the distribution of daily log returns across all assets
+# are spread out and less concentrated around the mean.
+# However, we can see that AAPL has a fatter belly, i.e. is more strongly concentrated around the mean
+# of zero. whereas MSFT and SP500 are less concentrated and spread out
+
+# overall our distributions resemble more the double exponential or Gauchy in their
+# belly and tails behavior
+
+# correlated between the equities?
+# relatively low annualized volatility
+equities %>%
+  dplyr::select(name, date, adjusted) %>%
+  tidyr::pivot_wider(id_cols = c("name", "date"), names_from = "name", values_from = adjusted) %>%
+  dplyr::select(-date) %>%
+  pairs()
+
+# here we already see some linear association between the equities
+corr <- equities %>%
+  dplyr::select(name, date, adjusted) %>%
+  tidyr::pivot_wider(id_cols = c("name", "date"), names_from = "name", values_from = adjusted) %>%
+  dplyr::select(-date) %>% cor()
+
+# the correlation matrix makes this just more obvious
+corr %>% ggcorrplot() +
+  labs(title = "Correlation between equities") +
+  theme_light()
