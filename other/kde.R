@@ -1,72 +1,82 @@
-# some testing of kernel density estimation
+# auth: christian bitter (c) 2020
+# name: kde.r
+# desc: some testing of kernel density estimation, on a toy dataset
+
 rm(list = ls());
 library(ggplot2);
 library(dplyr);
 
-# get some univariate data
-data_df <- datasets::cars;
-x <- data_df$speed;
+kde <- function(X,
+                kernel_name = c("cosine", "gaussian", "rectangular", "triangular"),
+                band_width,
+                no_sample = 512) {
+  K_cosine <- function(t) {
+    pi2 <- pi / 2;
+    pi4 <- pi / 4;
 
-# look at the histogram for a first feel
-hist(x);
-as_tibble(x = data_df) %>%
-  ggplot() +
-  geom_density(aes(x = speed), kernel = "cosine", bw = 1 - (8/pi**2)) +
-  scale_y_continuous(labels = scales::percent) +
-  theme_light() +
-  labs(title = "Kernel Density Estimation",
-       subtitle = "Speed of the cars dataset")
-
-
-K_cosine <- function(t) {
-  pi2 <- pi / 2;
-  pi4 <- pi / 4;
-
-  return(pi4 * cos(pi2 * t));
-}
-
-kde <- function(X, kernel, band_width) {
-  n <- length(X);
-  ninv <- 1/n;
-  bwinv <- 1/band_width;
-
-  KDE <- function(x) {
-    e <- 0;
-    for (j in 1:n) {
-      k_i <- kernel((x - X[j]) * bwinv);
-      e <- e + bwinv * k_i;
-    }
-
-    return(e * ninv);
+    return(pi4 * cos(pi2 * t));
   }
 
-  return(KDE);
+  K_gaussian <-function(t) {
+    p <- 1/sqrt(2*pi);
+
+    return(p * exp(-0.5*t^2))
+  }
+
+  K_box <- function(t) {
+    return(ifelse(abs(t) < 1, .5, 0.));
+  }
+
+  K_triangle <- function(t) {
+    return(ifelse(abs(t) <= 1., 1. - abs(t), 0));
+  }
+
+  x_density <- function(x, X, fn_kernel, band_width) {
+    p <- 1 / (length(X) * band_width);
+    return(sum(p * fn_kernel((x - X)/band_width)));
+  }
+
+  fn_kernel <- list(
+    "gaussian" = K_gaussian,
+    "triangular" = K_triangle,
+    "rectangular" = K_box,
+    "cosine" = K_cosine
+  )[[kernel_name]];
+
+  if (is.null(fn_kernel)) stop(sprintf("Unknown kernel: %s", kernel_name));
+
+  n <- length(X);
+  bwinv <- 1 / band_width;
+  p <- bwinv / n;
+  .x. <- seq(min(X), max(X), length.out = no_sample);
+
+  KDE <- function(x) {
+    return(sum(p * fn_kernel((x - X) * bwinv)));
+  }
+
+  return(list(
+    "X"  = X,
+    "bw" = band_width,
+    "xs" = .x.,
+    "kernel" = kernel_name,
+    "ys" = sapply(X = .x., FUN=KDE, simplify = T)
+    )
+  );
 }
 
-kde_x <- kde(X = x, kernel = K_cosine, band_width = 1 - (8/pi**2));
+X <- c(-2.1, -1.3, -0.4, 1.9, 5.1, 6.2);
+bw <- sqrt(2.25);
+yg <- kde(X, "gaussian", bw);
+yc <- kde(X, "cosine", bw);
+yt <- kde(X, "triangular", bw);
+yb <- kde(X, "rectangular", bw);
 
-x_test <- c(-0.77, -0.6, -.25, .14, .45, .64, .64, 1.19, 1.71, 1.74);
-
-dor <- density(x = x_test, bw=1 - (8/pi**2), kernel = "cosine", n = 32);
-plot(dor, col="blue")
-
-# x_test <- dor$x;
-# y_test <- numeric(length = length(x_test));
-# for (i in 1:length(x_test)) {
-#   y_test[i] <- kde_x(x_test[i]);
-# }
-
-as_tibble("x" = x_test) %>%
-  ggplot() +
-  geom_density(aes(x = x), kernel = "cosine", bw = 1 - (8/pi**2)) +
-  scale_y_continuous(labels = scales::percent) +
-  theme_light() +
+ggplot() +
+  geom_line(aes(x = yg$xs, y = yg$ys, colour = "gaussian")) +
+  geom_line(aes(x = yc$xs, y = yc$ys, colour = "cosine")) +
+  geom_line(aes(x = yb$xs, y = yb$ys, colour = "rectangular")) +
+  geom_line(aes(x = yt$xs, y = yt$ys, colour = "triangular")) +
   labs(title = "Kernel Density Estimation",
-       subtitle = "cosine kernel of test data")
-
-
-
-tibble("x" = x_test, "y" = y_test) %>%
-  ggplot() +
-  geom_line(aes(x = x, y = y)) +
+       subtitle = "Comparison of various kernels on small synthetic data set",
+       colour = "Kernel", x = "t", y = "density") +
   theme_light()
