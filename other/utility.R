@@ -5,6 +5,9 @@ rm(list = ls());
 
 library(tidyquant);
 library(tidyverse);
+library(purrr);
+library(ggplot2);
+library(latex2exp);
 
 # the utility of an instrument i to an investor j with risk aversion
 # l_j and instrument risk R_i is defined as
@@ -54,3 +57,43 @@ utility %>%
                         sep = "\n")
   ) +
   theme_light()
+
+
+# mean-variance indifference curves
+lambda <- c(5, 3, 1);
+utility <- .04;
+N <- 100;
+w <- 1.1;
+df <- purrr::cross_df(list("l" = lambda,
+                        "u" = utility,
+                        "s" = seq(0, .4, length.out = N)));
+
+df <- df %>% dplyr::mutate(E = u + l * s^w);
+
+df %>%
+  ggplot() +
+  geom_line(aes(x = s, y = E, colour = as.factor(l), group = as.factor(l))) +
+  theme_light() +
+  labs(x = TeX("$\\sigma$"), y = TeX("$\\R_p$"), colour = TeX("$\\lambda$"),
+       title = "Indifference curves for mean-variance utility");
+
+
+# capital allocation line
+N <- 100;
+df <- purrr::cross_df(list("Ep" = c(-1, .5, 3),
+                           "rf" = c(0, 1, 2),
+                           "y" = seq(0, 1, length.out = N)));
+df <- df %>%
+  dplyr::mutate(E_c = rf + y * Ep);
+
+df %>%
+  ggplot() +
+  geom_line(aes(x = y, y = E_c, group = as.factor(Ep), colour = as.factor(Ep))) +
+  theme_light() +
+  labs(x = "y", y = TeX("$\\E_c$"), colour = TeX("$\\E_p$"),
+       title = "Capital Allocation Line",
+       subtitle = paste("Different risk free rates and portfolio profits represent the risk free and risky portfolio (Ep).",
+                        "This leads to varying combined portfolio returns.",
+                        sep="\n"),
+       caption = "(c) 2020 Christian Bitter") +
+  facet_grid(. ~ rf)
