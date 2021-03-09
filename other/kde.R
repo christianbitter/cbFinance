@@ -48,6 +48,7 @@ kde <- function(X,
   n <- length(X);
   bwinv <- 1 / band_width;
   p <- bwinv / n;
+  # TODO: we might consider a different sampling scheme
   .x. <- seq(min(X), max(X), length.out = no_sample);
 
   KDE <- function(x) {
