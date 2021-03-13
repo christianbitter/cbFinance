@@ -4,6 +4,12 @@
 get_asset <- function(asset = "AMZN", from = "2010-12-31", to = "2013-12-31",
                       alt_ticker = NULL) {
   library(tidyquant);
+
+  if (asset == "^GSPC") {
+    warning("asset sp500 use alt_ticker");
+    alt_ticker <- "sp500";
+  }
+
   # other assets
   # IBM (IBM), S&P 500 Index (ˆGSPC), SPDR S&P 500 ETF (SPY), S&P 600 Small Cap ETF (SLY),
   # SPDR Barclays Aggregate Bond ETF (LAG),
@@ -21,7 +27,7 @@ get_asset <- function(asset = "AMZN", from = "2010-12-31", to = "2013-12-31",
     a_df <- readr::read_csv(file = a_fp);
   } else {
     a_df <- tidyquant::tq_get(x=asset, from=from, to=to);
-    if (nrow(a_df) < 1) {
+    if (is.na(a_df) || is.null(a_df) || nrow(a_df) < 1) {
       stop(sprintf("No data found for symbol: %s", asset));
     }
     readr::write_csv(x = a_df, path = a_fp)
@@ -29,3 +35,13 @@ get_asset <- function(asset = "AMZN", from = "2010-12-31", to = "2013-12-31",
 
   return(a_df);
 }
+
+
+adjusted.close <- function(.data, rename = "adjusted") {
+  return(dplyr::select(.data, date, adjusted) %>%
+           dplyr::rename(!!rename := adjusted));
+}
+
+#'@name end of month
+eom <- function(date)
+    lubridate::ceiling_date(lubridate::date(date), "month") - 1
