@@ -1,6 +1,7 @@
-# auth: chritian bitter
-# source: Analyzing Financial Data and Implementing Financial Models Using R
-# desc: getting the AMZN data
+#'@author chritian bitter
+#'@name get_asset
+#'@description convenience call to tq_get storing data locally if not existing
+#'and pulling it.
 get_asset <- function(asset = "AMZN", from = "2010-12-31", to = "2013-12-31",
                       alt_ticker = NULL) {
   library(tidyquant);
@@ -37,11 +38,29 @@ get_asset <- function(asset = "AMZN", from = "2010-12-31", to = "2013-12-31",
 }
 
 
+#'@name adjusted.close
+#'@description assuming that .data represents a data frame containing a column adjusted
+#'and date, project those two columns and potentially rename adjusted to rename
 adjusted.close <- function(.data, rename = "adjusted") {
   return(dplyr::select(.data, date, adjusted) %>%
            dplyr::rename(!!rename := adjusted));
 }
 
-#'@name end of month
+#'@name closing.price
+#'@description convenience function projecting date, close and adjusted in a tq_get-style data frame.
+#'if provided the attributes are renamed and prefixed
+closing.price <- function(.data, prefix, close_name = "close", adjusted_name = "adjusted") {
+  if (!is.null(prefix) && stringr::str_length(prefix) > 0) {
+    close_name <- sprintf("%s%s", prefix, close_name);
+    adjusted_name <- sprintf("%s%s", prefix, adjusted_name);
+  }
+
+  .data <- .data %>% dplyr::select(date, close, adjusted) %>%
+    dplyr::rename(!!close_name := close,
+                  !!adjusted_name := adjusted);
+}
+
+#'@name eom
+#'@description gets the date of the last day in a month
 eom <- function(date)
     lubridate::ceiling_date(lubridate::date(date), "month") - 1

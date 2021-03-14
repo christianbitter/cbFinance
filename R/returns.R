@@ -7,10 +7,7 @@ simple_return <- function(prices) {
   if (missing(prices)) stop("Missing prices")
   if (length(prices) < 1) stop("Missing prices")
 
-  N <- length(prices);
-  x_i <- prices[1:N - 1];
-  x_j <- prices[2:N]
-  return((x_j - x_i) / x_i);
+  return(c(0, diff(prices)) / prices);
 }
 
 #'@title Returns
@@ -59,8 +56,37 @@ geometric_mean_returns <- function(prices) {
 #'@export
 #'@name log_return
 log_return <- function(prices) {
-  N <- length(prices);
-  x_i <- log(prices[1:N - 1]);
-  x_j <- log(prices[2:N]);
-  return(x_j - x_i);
+  return(c(0, diff(log(prices))));
+}
+
+#'@title Returns
+#'@author Christian Bitter
+#'@export
+#'@name excess_return
+excess_return <- function(log_return, log_return_riskfree) {
+  return(log_return - log_return_riskfree);
+}
+
+#'@title Returns
+#'@author Christian Bitter
+#'@export
+#'@name expected_return
+expected_return <- function(log_return) {
+  return(mean(log_return));
+}
+
+#'@title Returns
+#'@author Christian Bitter
+#'@export
+#'@name expected_annual_return
+expected_annual_return <- function(log_return, trading_days = 250) {
+  return(trading_days * expected_return(log_return));
+}
+
+#'@title Returns
+#'@author Christian Bitter
+#'@export
+#'@name risk_premium
+risk_premium <- function(log_return, log_return_riskfree) {
+  return(mean(excess_return(log_return, log_return_riskfree)));
 }
