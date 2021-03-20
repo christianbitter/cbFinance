@@ -39,7 +39,6 @@ ff$Gm[1] <- 1;
 ff <- ff %>% dplyr::mutate(cGf = cumprod(Gf),
                            cGm = cumprod(Gm));
 # finally, plot the data
-
 ff %>%
   ggplot() +
   geom_line(aes(x = date, y = cGf, colour = "Bonds"), linetype = 4) +
