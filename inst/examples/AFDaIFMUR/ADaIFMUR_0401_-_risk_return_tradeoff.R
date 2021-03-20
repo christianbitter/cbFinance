@@ -1,7 +1,4 @@
-# desc: download the Fama/French data
-# the data is Fama/French 3 Factors
-# under
-# https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html
+# desc: risk return trade-off based on Fama French data
 
 rm(list = ls());
 
