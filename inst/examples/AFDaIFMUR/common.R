@@ -64,3 +64,64 @@ closing.price <- function(.data, prefix, close_name = "close", adjusted_name = "
 #'@description gets the date of the last day in a month
 eom <- function(date)
     lubridate::ceiling_date(lubridate::date(date), "month") - 1
+
+ff_3f <- function(save_data = T) {
+  base_dir <- "inst/data";
+  monthly_fp <- file.path(base_dir, "F-F_Research_Data_Factors_monthly.csv");
+  yearly_fp <- file.path(base_dir, "F-F_Research_Data_Factors_yearly.csv");
+
+  if (file.exists(monthly_fp) & file.exists(yearly_fp)) {
+    monthly_df <- readr::read_csv(monthly_fp);
+    yearly_df  <- readr::read_csv(yearly_fp);
+
+    return(list(
+      "yearly" = yearly_df,
+      "monthly" = monthly_df
+    ));
+  }
+
+  fp <- "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_CSV.zip";
+  temp <- tempfile()
+  download.file(fp, temp)
+  temp_dir <- tempdir();
+
+  unzip(zipfile = temp, exdir = temp_dir);
+  data_fp <- file.path(temp_dir, "F-F_Research_Data_Factors.CSV");
+  data_df <- readr::read_csv(data_fp, skip_empty_rows = T, skip = 2);
+  unlink(temp_dir);
+  unlink(temp);
+
+  # the original data contains the copyright in the last row, this will be empty
+  # so skip it.
+  data_df <- data_df[-nrow(data_df), ];
+
+  # clean up the names
+  names(data_df) <- c("date", "RmxRf", "SMB", "HML", "Rf");
+
+  # convert date from real to int and convert rates to fractions
+  data_df <- data_df %>%
+    dplyr::mutate(date = as.integer(date)) %>%
+    dplyr::mutate(RmxRf = RmxRf / 100.,
+                  Rf = Rf / 100.);
+
+  # the file contains monthly and yearly aggregate, so pay attention
+  monthly_df <- data_df %>%
+    dplyr::filter(date >= 10000) %>%
+    dplyr::mutate(date = lubridate::ymd(date, truncated = 1L));
+
+  # since the yearly data is at most 2021 - we can filter out all rows < 10000
+  yearly_df <- data_df %>%
+    dplyr::filter(date < 10000) %>%
+    dplyr::mutate(date = lubridate::ymd(date, truncated = 2L));
+
+  # save the data for next time?
+  if (save_data) {
+    readr::write_csv(x = monthly_df, path = monthly_fp);
+    readr::write_csv(x = yearly_df, path = yearly_fp);
+  }
+
+  return(list(
+    "yearly" = yearly_df,
+    "monthly" = monthly_df
+  ));
+}
