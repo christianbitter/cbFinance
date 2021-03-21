@@ -9,12 +9,22 @@ library(tidyquant);
 
 source("inst/examples/AFDaIFMUR/common.R")
 
+# https://stackoverflow.com/questions/2602583/geometric-mean-is-there-a-built-in
+# here we take the log of the product - transforming it to a sum and then finally
+# doing 1/d is the same as x^(1/d)
+# raising it to the e
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm = na.rm) / length(x))
+}
+
 amzn_df <- get_asset(from = "2010-12-31", to = "2013-12-31") %>%
   adjusted.close() %>%
   tq_transmute(select     = adjusted,
                mutate_fun = periodReturn,
                period     = "daily",
                col_rename = "Rd") %>%
+  dplyr::mutate(Gd = Rd + 1.,
+                cD = cumprod(Gd)) %>%
   dplyr::mutate(year = lubridate::year(date));
 
 amzn_df %>%
@@ -30,11 +40,16 @@ aggregate_df <- amzn_df %>%
   dplyr::filter(year > 2010) %>%
   dplyr::group_by(year) %>%
   dplyr::summarise(mu = mean(Rd),
-                   sigma = var(Rd)) %>%
+                   sigma = var(Rd),
+                   gmu = gm_mean(Rd)) %>%
   dplyr::rename("scope" = year) %>%
   dplyr::mutate(scope = as.character(scope)) %>%
   dplyr::bind_rows(
-    dplyr::summarise(amzn_df, mu = mean(Rd), sigma = var(Rd), scope = "2010-2013")
+    dplyr::summarise(amzn_df,
+                     mu = mean(Rd),
+                     sigma = var(Rd),
+                     gmu = gm_mean(Rd),
+                     scope = "2010-2013")
   ) %>%
   dplyr::mutate(sd = sqrt(sigma));
 
