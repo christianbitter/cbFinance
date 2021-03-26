@@ -33,7 +33,7 @@ f <- sqrt(trading_days);
 portfolio_risk <- portfolio %>%
   dplyr::summarise(sd_AMZN_a = sd(AMZN) * f,
                    sd_IBM_a = sd(IBM) * f,
-                   cov_a = cov(AMZN, IBM) * f);
+                   cov_a = cov(AMZN, IBM) * trading_days);
 
 # now calculate the portfolio risk
 w_AMZN <- weights %>% dplyr::filter(symbol == "AMZN") %>% .[["w"]];
