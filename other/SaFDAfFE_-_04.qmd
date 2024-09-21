@@ -1,0 +1,196 @@
+---
+title: "SDAFE - 2.4.2 Simulations"
+format: html
+editor: visual
+---
+
+## Introduction
+
+This document contains some of the exercises discussed in Statistics and Data Analysis for Financial Engineering (with R examples) chapter 2.
+
+## 2.4.2 - Simulations
+
+Hedge funds can earn high profits through the use of leverage, but leverage also creates high risk. Suppose a hedge fund owns 1,000,000\$ in stock and used 50,000\$ of its own capital. Suppose the daily log returns have a mean of 0.05/a, and a standard deviation of 0.23/a. A trading year has 253 days.
+
+```{r}
+#| echo: false
+
+C_total <- 1e6;
+C_own   <- 5e4;
+leverage <- C_total / C_own;
+
+mu_a <- 0.05;
+sd_a <- 0.23;
+t_d  <- 253;
+
+cat("Leverage: ", leverage, ":1\r\n");
+```
+
+What is the probability that the value fo the stock will be below 950,000\$ at the close of one of the next 45 trading days? Let's define the necessary variables
+
+```{r}
+#| echo: false
+
+mu_d <- mu_a / t_d;
+sd_d <- sd_a / sqrt(t_d)
+```
+
+And run a simulation
+
+```{r}
+#| echo: false
+
+days <- 45; 
+# we simulate the next 45 trading days, drawing log returns from a normal # distribution with the respective daily means and spread 
+
+R_d1 <- rnorm(n = days, mean = mu_d, sd = sd_d);
+
+# we create the cumulative returns by summing the log returns
+# and multiply by the capital invested
+# remember that the daily returns can be calculated by the daily log
+# price difference
+
+r0 <- log(C_total);
+R_d <- r0 + cumsum(R_d1);
+
+# now let's add the lower limit and plot to see if the stock falls below the limit triggering a sell-off
+
+l_lo <- log(9.5e5)
+d_lo <- which(R_d < l_lo, arr.ind = T)
+is_below <- sum(d_lo) > 0;
+cat("Portfolio value falls below critical line:", is_below, "\n");
+plot(R_d, main="Do returns fall below the critical line", 
+     xlab="t [days]", ylab="Daily log returns")
+abline(h=l_lo, col="red")
+if (is_below) abline(v = d_lo[1], col="blue");
+```
+
+With this basic notion in place, we do the experiment and run the simulation a couple of times to estimate the actual probability.
+
+```{r}
+# | echo: false
+
+sim <- function(days=45, critical_value = log(C_total - C_own)) {
+  R_d <- c(log(C_total), 
+           rnorm(n = days, mean = mu_d, sd = sd_d));
+  R_d <- cumsum(R_d);
+  d_lo <- which(R_d < critical_value, arr.ind = T)
+  return(sum(d_lo) > 0);
+}
+
+n_iter <- 1e5;
+results <- replicate(n = n_iter, expr = sim(), simplify = T);
+
+cat("probability of selling the portfolion\n");
+cat("after ", n_iter, "runs, is: ", mean(results), "\n");
+```
+
+Here, we see that even for a mild risk case, i.e. the portfolio has an annualized risk of 5%, the probability of us selling the portfolio is above 50%.
+
+### Problem 5
+
+What is the probability that the hedge fund makes a profit of at least 100k\$. For that, we simulate the portfolio for the required number of days. Then we ask in how many cases did we exceed the 1.1 Mio mark.
+
+```{r}
+library(ggplot2);
+
+sim <- function(days=100, base_price = 1000000) {
+  r_d <- rnorm(n = days, mean = mu_d, sd = sd_d);
+  R_d <- c(base_price, base_price * exp(cumsum(r_d)));
+  profit <- 100000;
+  loss   <- 50000;
+  closing_price <- R_d[days];
+  
+  if (closing_price >= base_price + profit) {
+    return(1);
+  }
+  else if (closing_price >= base_price - loss) {
+    return(0);
+  }
+  else {
+    return (-1);
+  }
+}
+niter   <- 1e5;
+outcomes <- replicate(n = niter, expr = sim(), simplify = T);
+outcome_df <- data.frame(i = 1:niter, y = as.factor(outcomes));
+
+outcome_df |> 
+  ggplot(aes(x = y)) + 
+  geom_bar() +
+  labs(title = "Hedge Fund",
+       subtitle = "Proportion of exceeding 100k$ profit (1), 50k$ loss (-1) or staying flat.") +
+  scale_y_continuous(labels = scales::number_format()) + 
+  theme_light()
+```
+
+### Problem 6
+
+### Problem 7
+
+### Problem 8
+
+## 2.4.3 - Simulating a geometric random walk
+
+```{r}
+set.seed(2012);
+n_td <- 253;
+mu_r_a <- 0.05;
+sd_r_a <- 0.2;
+base_price <- 120;
+
+df_price <- data.frame("run" = c(), "price" = c());
+
+for (i in (1:9)) {
+  log_returns <- rnorm(n = n_td, 
+                       mean = mu_r_a / n_td, 
+                       sd = sd_r_a / n_td);
+  asset_price <- c(base_price, base_price * exp(cumsum(log_returns)));
+  df_price_i  <- data.frame("run" = i, "price" = asset_price)
+  df_price <- rbind(df_price, df_price_i);
+  
+  plot(asset_price)
+}
+```
+
+### Problem 9
+
+What are the mean and the standard deviation of the log-returns for 1 year. The mean $\mu=0.05$ and the standard deviation of the annual log-price is $\sigma = 0.2$.
+
+### Problem 10
+
+Does the price series have momentum? Yes, the price series is seemingly only moving upwards, with minor setbacks.
+
+### Problem 11
+
+What does the code `c(base_price, base_price * exp(cumsum(log_returns)))`do?
+
+This code calculates the daily asset prices from the log returns. It does so by assuming the asset starting price is a 120. Based on the daily log returns it then creates the forward price series by using that i.i.d. normally distributed daily log returns correspond to a geometric daily price series. Through accumulating the daily log returns from the start, yields the daily accumulated return, exponentiation and multiplying with the asset start price yields the asset price at that day.
+
+## 2.4.4. Let's look at Mc Donalds Stock
+
+```{r}
+library(tidyquant)
+library(ggplot2)
+library(dplyr)
+library(readr)
+
+prices <- tidyquant::tq_get("MDO", from = "2010-01-01", to = "2014-12-31");
+```
+
+## Problem 12
+
+Compute the returns and log returns. log returns are the differences of daily log asset prices. Log returns are the daily differences.
+
+```{r}
+mcd           <- prices$adjusted;
+m             <- length(mcd);
+
+log_returns_d <- diff(log(mcd));
+returns_d     <- c(0, (mcd[-1] / mcd[-m]) - 1)
+
+par(mfrow=c(1,2));
+hist(log_returns_d, main = "daily log returns");
+hist(returns_d, main = "daily returns");
+
+```

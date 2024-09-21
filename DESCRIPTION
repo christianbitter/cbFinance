@@ -1,14 +1,14 @@
 Package: cbFinance
 Type: Package
-Title: What the Package Does (Title Case)
+Title: CBFinance - a collection of experiments on using R for financial data analysis.
 Version: 0.1.0
-Author: Who wrote it
+Author: Christian Bitter
 Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Description: The package contains a collection of scripts and exercises mostly
+coming from the book Statistics and Data Analysis for Financial Engineering. 
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
 Suggests: 
     testthat (>= 2.1.0)
-RoxygenNote: 7.1.1
+RoxygenNote: 7.3.2
